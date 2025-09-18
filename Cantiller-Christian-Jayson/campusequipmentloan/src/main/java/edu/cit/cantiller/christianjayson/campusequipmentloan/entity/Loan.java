@@ -26,6 +26,8 @@ public class Loan {
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;
 
+
+
     private LocalDate startDate;
     private LocalDate dueDate;
     private LocalDate returnDate;
@@ -33,7 +35,9 @@ public class Loan {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    private int penalty;   // 👈 NEW FIELD (₱)
+
+    @Column
+    private Double penalty;   // 👈 NEW FIELD (₱)
 
     public enum Status {
         ACTIVE, RETURNED, OVERDUE

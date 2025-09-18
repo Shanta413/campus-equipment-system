@@ -1,6 +1,7 @@
 package edu.cit.cantiller.christianjayson.campusequipmentloan.service.impl;
 
 import edu.cit.cantiller.christianjayson.campusequipmentloan.entity.*;
+import edu.cit.cantiller.christianjayson.campusequipmentloan.exception.LoanLimitExceededException;
 import edu.cit.cantiller.christianjayson.campusequipmentloan.repository.*;
 import edu.cit.cantiller.christianjayson.campusequipmentloan.service.LoanService;
 import edu.cit.cantiller.christianjayson.campusequipmentloan.service.penalty.PenaltyStrategy;
@@ -20,7 +21,7 @@ public class LoanServiceImpl implements LoanService {
     private final PenaltyStrategy penaltyStrategy;
 
     @Override
-    public Loan createLoan(Long studentId, Long equipmentId, LocalDate dueDate) {
+    public Loan createLoan(Long studentId, Long equipmentId, LocalDate borrowDate, LocalDate dueDate) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
         Equipment equipment = equipmentRepository.findById(equipmentId)
@@ -29,7 +30,7 @@ public class LoanServiceImpl implements LoanService {
         // Rule 1: Max 2 active loans
         List<Loan> activeLoans = loanRepository.findByStudentAndStatus(student, Loan.Status.ACTIVE);
         if (activeLoans.size() >= 2) {
-            throw new RuntimeException("Student already has 2 active loans");
+            throw new LoanLimitExceededException("Student already has 2 active loans");
         }
 
         if (!equipment.isAvailable()) {
@@ -42,29 +43,33 @@ public class LoanServiceImpl implements LoanService {
         Loan loan = Loan.builder()
                 .student(student)
                 .equipment(equipment)
-                .startDate(LocalDate.now())
-                .dueDate(dueDate) // flexible from request
+                .startDate(borrowDate != null ? borrowDate : LocalDate.now())
+                .dueDate(dueDate != null ? dueDate : (borrowDate != null ? borrowDate.plusDays(7) : LocalDate.now().plusDays(7))) // 👈 default 7 days
                 .status(Loan.Status.ACTIVE)
+                .penalty(0.0) // 👈 always initialize with 0
                 .build();
 
         return loanRepository.save(loan);
     }
 
     @Override
-    public Loan returnLoan(Long loanId) {
+    public Loan returnLoan(Long loanId, LocalDate returnDate) {
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found"));
 
-        loan.setReturnDate(LocalDate.now());
+        LocalDate actualReturnDate = returnDate != null ? returnDate : LocalDate.now();
+        loan.setReturnDate(actualReturnDate);
 
-        if (loan.getReturnDate().isAfter(loan.getDueDate())) {
+        if (actualReturnDate.isAfter(loan.getDueDate())) {
             loan.setStatus(Loan.Status.OVERDUE);
-            int penalty = penaltyStrategy.calculatePenalty(loan);
-            loan.setPenalty(penalty);  // 👈 store penalty
-            System.out.println("Penalty: ₱" + penalty);
+            long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(
+                    loan.getDueDate(), actualReturnDate
+            );
+            double penaltyAmount = penaltyStrategy.calculatePenalty(overdueDays);
+            loan.setPenalty(penaltyAmount);
         } else {
             loan.setStatus(Loan.Status.RETURNED);
-            loan.setPenalty(0);        // 👈 no penalty
+            loan.setPenalty(0.0); // 👈 always set penalty to 0 if not overdue
         }
 
         Equipment equipment = loan.getEquipment();
