@@ -8,6 +8,8 @@ import lombok.Setter;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/loans")
@@ -17,16 +19,25 @@ public class LoanController {
     private final LoanService loanService;
 
     @PostMapping
-    public Loan createLoan(@RequestBody CreateLoanRequest request) {
+    public Object createLoan(@RequestBody CreateLoanRequest request) {
         LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : LocalDate.now();
-        LocalDate dueDate = startDate.plusDays(7); // 🔹 Always 7-day loan
+        LocalDate dueDate = startDate.plusDays(7); // Always 7-day loan
 
-        return loanService.createLoan(
+        Loan loan = loanService.createLoan(
                 request.getStudentId(),
                 request.getEquipmentId(),
                 startDate,
                 dueDate
         );
+
+        if (loan == null) {
+            // Instead of throwing error → return message with 200 OK
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Student already has 2 active loans");
+            return response;
+        }
+
+        return loan;
     }
 
     @PostMapping("/{loanId}/return")
@@ -40,7 +51,7 @@ public class LoanController {
     public static class CreateLoanRequest {
         private Long studentId;
         private Long equipmentId;
-        private LocalDate startDate; // 🔹 renamed from borrowDate → startDate
+        private LocalDate startDate;  // ✅ changed from borrowDate to startDate
     }
 
     // DTO for returning loan

@@ -21,7 +21,7 @@ public class LoanServiceImpl implements LoanService {
     private final PenaltyStrategy penaltyStrategy;
 
     @Override
-    public Loan createLoan(Long studentId, Long equipmentId, LocalDate borrowDate, LocalDate dueDate) {
+    public Loan createLoan(Long studentId, Long equipmentId, LocalDate startDate, LocalDate dueDate) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
         Equipment equipment = equipmentRepository.findById(equipmentId)
@@ -30,7 +30,8 @@ public class LoanServiceImpl implements LoanService {
         // Rule 1: Max 2 active loans
         List<Loan> activeLoans = loanRepository.findByStudentAndStatus(student, Loan.Status.ACTIVE);
         if (activeLoans.size() >= 2) {
-            throw new LoanLimitExceededException("Student already has 2 active loans");
+            // instead of throwing exception → return null (controller will handle)
+            return null;
         }
 
         if (!equipment.isAvailable()) {
@@ -43,10 +44,10 @@ public class LoanServiceImpl implements LoanService {
         Loan loan = Loan.builder()
                 .student(student)
                 .equipment(equipment)
-                .startDate(borrowDate != null ? borrowDate : LocalDate.now())
-                .dueDate(dueDate != null ? dueDate : (borrowDate != null ? borrowDate.plusDays(7) : LocalDate.now().plusDays(7))) // 👈 default 7 days
+                .startDate(startDate)
+                .dueDate(dueDate)
                 .status(Loan.Status.ACTIVE)
-                .penalty(0.0) // 👈 always initialize with 0
+                .penalty(0.0)  // prevent null
                 .build();
 
         return loanRepository.save(loan);
