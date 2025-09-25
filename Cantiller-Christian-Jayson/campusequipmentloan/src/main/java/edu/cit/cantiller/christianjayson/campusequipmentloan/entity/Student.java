@@ -15,16 +15,21 @@ public class Student {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "student_id")   // 👈 change column name
+    @Column(name = "student_id")
     private Long id;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = false)
     @NotBlank
-    private String studentNo;
+    private String studentNo;   // ✅ keep student number
 
     @NotBlank
     private String name;
 
     @Email
-    private String email;
+    @Column(unique = true, nullable = false)
+    private String email;       // ✅ used for login
+
+    @NotBlank
+    private String password;
+
 }
